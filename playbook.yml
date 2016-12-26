@@ -1,0 +1,82 @@
+# vim: sw=2 sts=2 et ai
+- name: setup system
+  hosts: all
+  become: yes
+  tasks:
+    
+    - name: apt get compile deps
+      apt:
+        update_cache: yes
+        state: latest
+        name: "{{ item }}"
+      with_items:
+        - build-essential
+        - tcsh
+        - libtool-bin
+        - libtool
+        - automake
+        - gfortran
+        - libglu1-mesa-dev
+        - libfreetype6-dev
+        - uuid-dev
+        - libxmu-dev
+        - libxmu-headers
+        - libxi-dev
+        - libx11-dev
+        - libxt-dev
+        - libjpeg62-dev
+        - libxaw7-dev
+        - liblapack-dev
+        - gcc-4.8
+        - g++-4.8
+        - libgfortran-4.8-dev
+
+    - name: use gcc 4.8 by default
+      command: "update-alternatives --install /usr/bin/{{ item }} {{ item }} /usr/bin/{{ item }}-4.8 50"
+      with_items:
+        - gcc
+        - g++
+
+- name: setup user
+  hosts: all
+  become: no
+  tasks:
+
+    - name: get misc compile dep libs 
+      get_url:
+        url: ftp://surfer.nmr.mgh.harvard.edu/pub/dist/fs_supportlibs/prebuilt/centos6_x86_64/centos6-x86_64-packages.tar.gz
+        dest: ~/packages.tar.gz
+
+    - name: unpack compiled dep libs
+      unarchive:
+        src: ~/packages.tar.gz
+        dest: ~/
+        remote_src: yes
+        creates: ~/centos6-x86_64-packages/setup.sh
+    
+    - name: setup deps
+      command: ~/centos6-x86_64-packages/setup.sh
+      args:
+        creates: ~/centos6-x86_64-packages/qt/4.7.1/bin/qt.conf
+
+    - name: get fs sources
+      git:
+        repo: https://surfer.nmr.mgh.harvard.edu/pub/dist/freesurfer/repo/freesurfer.git
+        dest: ~/freesurfer
+
+    - name: setup configure
+      command: ./setup_configure
+      args:
+        chdir: ~/freesurfer
+        creates: ~/freesurfer/configure
+
+    - name: configure
+      command: ./configure --disable-Werror --with-pkgs-dir=/home/ubuntu/centos6-x86_64-packages --prefix=/home/ubuntu/fs_install --disable-xawplus-apps --disable-tcltk-apps
+      args:
+        chdir: ~/freesurfer
+        creates: ~/freesurfer/Makefile
+
+    - name: make
+      command: make -j4
+      args:
+        chdir: ~/freesurfer
